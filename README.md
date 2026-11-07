@@ -1,2 +1,0 @@
-# Tetris
-Tetris in HTML

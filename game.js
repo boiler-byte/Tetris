@@ -27,6 +27,7 @@
   };
 
   const TYPES = Object.keys(SHAPES);
+  const CLEAR_DURATION = 320;
 
   const canvas = document.getElementById('board');
   const ctx = canvas.getContext('2d');
@@ -66,6 +67,12 @@
   let blockSize = setupCanvas();
 
   let grid, current, nextPiece, score, level, lines, dropCounter, dropInterval, lastTime, paused, gameOver, started, rafId;
+
+  // Line-clear animation state
+  let clearingRows = [];
+  let clearStartTime = 0;
+  let isClearing = false;
+  let pendingClearCount = 0;
 
   function createGrid() {
     return Array.from({ length: ROWS }, () => Array(COLS).fill(null));
@@ -112,16 +119,32 @@
     });
   }
 
-  function clearLines() {
-    let cleared = 0;
-    for (let y = ROWS - 1; y >= 0; y--) {
-      if (grid[y].every(cell => cell)) {
-        grid.splice(y, 1);
-        grid.unshift(Array(COLS).fill(null));
-        cleared++;
-        y++;
-      }
+  function detectFullRows() {
+    const rows = [];
+    for (let y = 0; y < ROWS; y++) {
+      if (grid[y].every(cell => cell)) rows.push(y);
     }
+    return rows;
+  }
+
+  function beginLineClear(rows) {
+    isClearing = true;
+    clearingRows = rows.slice();
+    clearStartTime = performance.now();
+    pendingClearCount = rows.length;
+  }
+
+  function finishLineClear() {
+    let cleared = pendingClearCount;
+    // remove full rows (from bottom up)
+    for (let i = clearingRows.length - 1; i >= 0; i--) {
+      grid.splice(clearingRows[i], 1);
+      grid.unshift(Array(COLS).fill(null));
+    }
+    clearingRows = [];
+    isClearing = false;
+    pendingClearCount = 0;
+
     if (cleared > 0) {
       const points = [0, 100, 300, 500, 800][cleared] * level;
       score += points;
@@ -132,6 +155,21 @@
         dropInterval = Math.max(80, 800 - (level - 1) * 70);
       }
       updateHUD();
+    }
+
+    spawnPiece();
+    dropCounter = 0;
+    lastTime = performance.now();
+  }
+
+  function lockPiece() {
+    mergePiece();
+    const fullRows = detectFullRows();
+    if (fullRows.length > 0) {
+      beginLineClear(fullRows);
+    } else {
+      spawnPiece();
+      dropCounter = 0;
     }
   }
 
@@ -148,7 +186,7 @@
   }
 
   function rotate(dir) {
-    if (!current || paused || gameOver) return;
+    if (!current || paused || gameOver || isClearing) return;
     const rotated = rotateShape(current.shape, dir);
     const kicks = [0, -1, 1, -2, 2];
     for (const k of kicks) {
@@ -161,14 +199,14 @@
   }
 
   function move(dx) {
-    if (!current || paused || gameOver) return;
+    if (!current || paused || gameOver || isClearing) return;
     if (!collides(current.shape, current.x + dx, current.y)) {
       current.x += dx;
     }
   }
 
   function softDrop() {
-    if (!current || paused || gameOver) return;
+    if (!current || paused || gameOver || isClearing) return;
     if (!collides(current.shape, current.x, current.y + 1)) {
       current.y++;
       score += 1;
@@ -180,7 +218,7 @@
   }
 
   function hardDrop() {
-    if (!current || paused || gameOver) return;
+    if (!current || paused || gameOver || isClearing) return;
     let dist = 0;
     while (!collides(current.shape, current.x, current.y + 1)) {
       current.y++;
@@ -191,18 +229,14 @@
     lockPiece();
   }
 
-  function lockPiece() {
-    mergePiece();
-    clearLines();
-    spawnPiece();
-    dropCounter = 0;
-  }
-
-  function drawCell(context, x, y, size, type) {
+  function drawCell(context, x, y, size, type, alpha) {
     const color = COLORS[type];
     if (!color) return;
+    const a = alpha === undefined ? 1 : alpha;
+    if (a <= 0) return;
     const px = x * size;
     const py = y * size;
+    context.globalAlpha = a;
     context.fillStyle = color;
     context.fillRect(px + 1, py + 1, size - 2, size - 2);
     context.fillStyle = 'rgba(255,255,255,0.25)';
@@ -212,6 +246,7 @@
     context.strokeStyle = 'rgba(0,0,0,0.45)';
     context.lineWidth = 1;
     context.strokeRect(px + 0.5, py + 0.5, size - 1, size - 1);
+    context.globalAlpha = 1;
   }
 
   function drawGridLines() {
@@ -231,26 +266,70 @@
     }
   }
 
+  function drawClearingOverlay(progress) {
+    // progress 0..1
+    const flash = Math.sin(progress * Math.PI);
+    const brightness = 1 - progress;
+    for (const row of clearingRows) {
+      const py = row * blockSize;
+      // flash white bar across the row
+      ctx.globalAlpha = 0.75 * flash;
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, py, COLS * blockSize, blockSize);
+
+      // collapsing cells horizontally toward center
+      for (let x = 0; x < COLS; x++) {
+        const type = grid[row][x];
+        if (!type) continue;
+        const cx = (x + 0.5) * blockSize;
+        const cy = (row + 0.5) * blockSize;
+        const centerX = (COLS * blockSize) / 2;
+        const shift = (centerX - cx) * progress;
+        const size = blockSize * (1 - progress * 0.85);
+        const px = (x * blockSize) + shift + (blockSize - size) / 2;
+        const py2 = py + (blockSize - size) / 2;
+        ctx.globalAlpha = brightness;
+        ctx.fillStyle = COLORS[type];
+        ctx.fillRect(px + 1, py2 + 1, size - 2, size - 2);
+        ctx.fillStyle = 'rgba(255,255,255,0.4)';
+        ctx.fillRect(px + 1, py2 + 1, size - 2, Math.max(1, size * 0.14));
+      }
+
+      // bright horizontal sweep line
+      ctx.globalAlpha = 0.9 * (1 - progress);
+      ctx.fillStyle = '#c8c8ff';
+      ctx.fillRect(0, py + blockSize / 2 - 1, COLS * blockSize, 2);
+    }
+    ctx.globalAlpha = 1;
+  }
+
   function draw() {
     ctx.fillStyle = '#0a0a12';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     drawGridLines();
 
+    // draw grid, skipping clearing rows (they get special treatment)
+    const clearingSet = isClearing ? new Set(clearingRows) : null;
     for (let y = 0; y < ROWS; y++) {
+      if (clearingSet && clearingSet.has(y)) continue;
       for (let x = 0; x < COLS; x++) {
         if (grid[y][x]) drawCell(ctx, x, y, blockSize, grid[y][x]);
       }
     }
 
-    if (current && !gameOver) {
+    if (isClearing) {
+      const elapsed = performance.now() - clearStartTime;
+      const progress = Math.min(1, elapsed / CLEAR_DURATION);
+      drawClearingOverlay(progress);
+    }
+
+    if (current && !gameOver && !isClearing) {
       let gy = current.y;
       while (!collides(current.shape, current.x, gy + 1)) gy++;
       current.shape.forEach((row, y) => {
         row.forEach((val, x) => {
           if (val && gy + y >= 0) {
-            ctx.globalAlpha = 0.18;
-            drawCell(ctx, current.x + x, gy + y, blockSize, current.type);
-            ctx.globalAlpha = 1;
+            drawCell(ctx, current.x + x, gy + y, blockSize, current.type, 0.18);
           }
         });
       });
@@ -328,6 +407,17 @@
     if (!lastTime) lastTime = time;
     const delta = time - lastTime;
     lastTime = time;
+
+    if (isClearing) {
+      const elapsed = performance.now() - clearStartTime;
+      if (elapsed >= CLEAR_DURATION) {
+        finishLineClear();
+      }
+      draw();
+      rafId = requestAnimationFrame(loop);
+      return;
+    }
+
     dropCounter += delta;
     if (dropCounter > dropInterval) {
       if (!collides(current.shape, current.x, current.y + 1)) {
@@ -352,6 +442,9 @@
     gameOver = false;
     started = true;
     lastTime = 0;
+    isClearing = false;
+    clearingRows = [];
+    pendingClearCount = 0;
     nextPiece = randomPiece();
     updateHUD();
     spawnPiece();

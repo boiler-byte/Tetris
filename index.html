@@ -1,163 +1,96 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="de">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Tetris</title>
-<style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  html, body {
-    height: 100%;
-    background: #0d0d12;
-    color: #e8e8f0;
-    font-family: 'Segoe UI', system-ui, sans-serif;
-    overflow: hidden;
-    touch-action: none;
-    -webkit-user-select: none;
-    user-select: none;
-  }
-  body {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 100dvh;
-    background: radial-gradient(circle at 50% 0%, #1a1a2e 0%, #0d0d12 70%);
-  }
-  .game-wrap {
-    display: flex;
-    gap: 18px;
-    align-items: flex-start;
-    padding: 12px;
-  }
-  .board-container {
-    position: relative;
-    background: #12121c;
-    border: 2px solid #2a2a40;
-    border-radius: 10px;
-    box-shadow: 0 0 40px rgba(90, 90, 200, 0.25), inset 0 0 30px rgba(0,0,0,0.6);
-    padding: 6px;
-  }
-  canvas { display: block; border-radius: 6px; }
-  .side {
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
-    min-width: 120px;
-  }
-  .panel {
-    background: #12121c;
-    border: 2px solid #2a2a40;
-    border-radius: 10px;
-    padding: 10px 12px;
-    box-shadow: inset 0 0 20px rgba(0,0,0,0.5);
-  }
-  .panel h2 {
-    font-size: 11px;
-    letter-spacing: 2px;
-    text-transform: uppercase;
-    color: #7b7ba8;
-    margin-bottom: 6px;
-    font-weight: 600;
-  }
-  .panel .value {
-    font-size: 22px;
-    font-weight: 700;
-    font-variant-numeric: tabular-nums;
-    color: #b8b8ff;
-    text-shadow: 0 0 12px rgba(120,120,255,0.5);
-  }
-  #nextCanvas { display: block; margin: 0 auto; }
-  .controls {
-    font-size: 11px;
-    color: #6a6a90;
-    line-height: 1.7;
-  }
-  .controls b { color: #9a9ad0; font-weight: 600; }
-  .overlay {
-    position: absolute;
-    inset: 6px;
-    border-radius: 6px;
-    background: rgba(8, 8, 16, 0.88);
-    backdrop-filter: blur(3px);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 14px;
-    text-align: center;
-    padding: 20px;
-    z-index: 10;
-  }
-  .overlay.hidden { display: none; }
-  .overlay h1 {
-    font-size: 30px;
-    letter-spacing: 6px;
-    color: #b8b8ff;
-    text-shadow: 0 0 20px rgba(120,120,255,0.7);
-  }
-  .overlay p { color: #8888b0; font-size: 13px; line-height: 1.6; }
-  .overlay button {
-    margin-top: 6px;
-    padding: 12px 28px;
-    font-size: 15px;
-    font-weight: 700;
-    letter-spacing: 2px;
-    color: #0d0d12;
-    background: linear-gradient(180deg, #b8b8ff, #8a8af0);
-    border: none;
-    border-radius: 8px;
-    cursor: pointer;
-    box-shadow: 0 0 25px rgba(120,120,255,0.5);
-    transition: transform 0.1s, box-shadow 0.2s;
-  }
-  .overlay button:active { transform: scale(0.96); }
-  @media (max-width: 620px) {
-    .game-wrap { flex-direction: row; gap: 10px; padding: 6px; }
-    .side { min-width: 84px; gap: 8px; }
-    .panel { padding: 6px 8px; }
-    .panel .value { font-size: 16px; }
-    .panel h2 { font-size: 9px; letter-spacing: 1px; }
-    .controls { display: none; }
-    .overlay h1 { font-size: 24px; letter-spacing: 3px; }
-  }
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#090d1c">
+  <meta name="color-scheme" content="dark">
+  <meta name="description" content="Neon Stack – ein flüssiges Tetris-Spiel für Mobilgeräte. Mit Wischgesten, Sounds und Offline-Modus.">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Neon Stack">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png">
+  <link rel="apple-touch-icon" href="./icons/icon-192.png">
+  <link rel="stylesheet" href="./styles.css">
+  <title>Neon Stack · Tetris PWA</title>
 </head>
 <body>
-<div class="game-wrap">
-  <div class="board-container">
-    <canvas id="board"></canvas>
-    <div id="overlay" class="overlay">
-      <h1>TETRIS</h1>
-      <p id="overlayText">Pfeiltasten oder Wischen<br>zum Spielen</p>
-      <button id="startBtn">START</button>
-    </div>
+  <div class="app">
+    <main>
+      <section class="play-area" aria-label="Spielfeld und Vorschau">
+        <aside class="sidebar side-left">
+          <div class="hold-controls">
+            <div class="quick-actions" aria-label="Ton und Pause">
+          <button class="icon-button" id="sound-button" type="button" aria-label="Ton ausschalten" aria-pressed="true" title="Ton an/aus (M)">
+            <svg class="speaker-icon" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M11 5 6 9H3v6h3l5 4V5Z"/><path class="sound-wave" d="M15.5 8.5a5 5 0 0 1 0 7"/><path class="sound-wave" d="M18.5 5.5a9 9 0 0 1 0 13"/><path class="sound-muted" d="m16 9 5 6m0-6-5 6"/>
+            </svg>
+          </button>
+          <button class="icon-button" id="pause-button" type="button" aria-label="Spiel pausieren" title="Pause (P)" disabled>
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5.5" y="4.5" width="4" height="15" rx="1"/><rect x="14.5" y="4.5" width="4" height="15" rx="1"/></svg>
+          </button>
+            </div>
+            <button id="hold-action" type="button" class="preview-card hold-card" aria-label="Aktuellen Spielstein halten" title="Stein halten (C)" disabled>
+              <div class="preview-heading"><span>HOLD</span><small>C</small></div>
+              <canvas id="hold-canvas" width="120" height="70" aria-hidden="true"></canvas>
+              <span class="preview-hint">Tauschen</span>
+            </button>
+          </div>
+          <div class="side-note" aria-hidden="true"><span class="side-note-line"></span>PLAN. DROP. REPEAT.</div>
+        </aside>
+
+        <div class="board-shell" id="board-shell">
+          <div class="board-topline" aria-hidden="true"><span>SPIELFELD // 01</span><span class="signal"><i></i> LIVE</span></div>
+          <div class="board-frame" id="board-frame">
+            <canvas id="game-canvas" width="300" height="600" aria-label="Tetris-Spielfeld mit zehn Spalten und zwanzig Zeilen. Überall außer auf Buttons wischen oder tippen: Tippen dreht den Stein." tabindex="0"></canvas>
+            <div id="board-overlay" class="board-overlay" role="status" aria-live="polite">
+              <div class="overlay-graphic" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
+              <div class="overlay-kicker" id="overlay-kicker">BEREIT ZUM SPIELEN?</div>
+              <h2 id="overlay-title">LET'S STACK.</h2>
+              <p id="overlay-message">Blöcke stapeln. Reihen füllen. Punkte sammeln.</p>
+              <button id="overlay-button" type="button" class="primary-button">SPIEL STARTEN <span aria-hidden="true">↗</span></button>
+            </div>
+          </div>
+          <div class="board-bottomline" aria-hidden="true"><span>10 × 20 GRID</span><span id="connection-status">READY / PWA</span></div>
+        </div>
+
+        <aside class="sidebar side-right">
+          <div class="preview-card next-card" aria-label="Nächster Spielstein">
+            <div class="preview-heading"><span>NEXT</span><small>01</small></div>
+            <canvas id="next-canvas" width="120" height="70" aria-hidden="true"></canvas>
+            <div class="next-extra" aria-hidden="true">
+              <canvas id="next-canvas-2" width="120" height="70"></canvas>
+              <canvas id="next-canvas-3" width="120" height="70"></canvas>
+            </div>
+          </div>
+          <div class="side-note side-note-right" aria-hidden="true">KEEP IT MOVING.<span class="side-note-line"></span></div>
+        </aside>
+      </section>
+
+      <section class="scoreboard" aria-label="Spielstand">
+        <div class="score-tile score-primary">
+          <span class="tile-label">PUNKTE</span>
+          <strong id="score-value">0</strong>
+          <span class="best-score" id="best-value">BESTE 0</span>
+        </div>
+        <div class="score-tile">
+          <span class="tile-label">LEVEL</span>
+          <strong id="level-value">01</strong>
+          <span class="tile-bottom">TEMPO</span>
+        </div>
+        <div class="score-tile">
+          <span class="tile-label">LINIEN</span>
+          <strong id="lines-value">00</strong>
+          <span class="tile-bottom">GELÖSCHT</span>
+        </div>
+      </section>
+
+      <p class="help-line">Tastatur: ← → ↓ · ↑/X drehen · Z zurück · Leertaste Drop · C Hold · P Pause</p>
+    </main>
+    <footer class="footer"><span>NEON STACK / V4</span><span>NO ADS. JUST BLOCKS.</span></footer>
   </div>
-  <div class="side">
-    <div class="panel">
-      <h2>Punkte</h2>
-      <div class="value" id="score">0</div>
-    </div>
-    <div class="panel">
-      <h2>Level</h2>
-      <div class="value" id="level">1</div>
-    </div>
-    <div class="panel">
-      <h2>Linien</h2>
-      <div class="value" id="lines">0</div>
-    </div>
-    <div class="panel">
-      <h2>Nächstes</h2>
-      <canvas id="nextCanvas" width="96" height="96"></canvas>
-    </div>
-    <div class="panel controls">
-      <b>← →</b> Bewegen<br>
-      <b>↑ / X</b> Drehen<br>
-      <b>↓</b> Schneller<br>
-      <b>Leertaste</b> Fallen<br>
-      <b>P</b> Pause
-    </div>
-  </div>
-</div>
-<script src="game.js"></script>
+  <div id="announcement" class="sr-only" aria-live="polite" aria-atomic="true"></div>
+  <script src="./game.js" defer></script>
 </body>
 </html>
